@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
 
 function main(){
-  local path="$( pwd )"
-  local PROJECT_TITLE=${1:-Bash Project}
+  local PROJECT_TITLE=${1:-BeeLib Project}
+  local path="$( cd "$( dirname "$( dirname "${BASH_SOURCE[0]}" )" )" && pwd )"
   local bin="$path/bin"
   local local="$path/local/bin"
-  local start="$path/b-project"
-  local start_cmd="$path/b-project.cmd"
+  local start="$path/project"
+  local start_cmd="$path/project.cmd"
 
   mkdir --parents "$bin" "$local"
+
   cat << EOF > $start
 #!/usr/bin/env bash
-PROJECT_TITLE="$PROJECT_TITLE" \$(dirname "\$0")/blib/project
+PROJECT_TITLE="$PROJECT_TITLE" \\
+PROJECT_PATH=\$(cd "\$(dirname "\$(realpath "\${BASH_SOURCE[0]}" )" )" && pwd) \\
+\$(dirname "\$0")/beelib/project-start start
 EOF
-
   chmod +x $start
 
 #  cat << EOF > $start_cmd

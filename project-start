@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
 
+function _start(){
+  local init_file="${path}/project-start"
+  type gnome-terminal >/dev/null 2>&1 \
+    && gnome-terminal -- bash --init-file "$init_file" \
+    || bash --init-file "$init_file"
+}
+
 function _project_prepend_path(){
   local path=$1
   if [[ -d "$path" ]]; then
@@ -9,9 +16,7 @@ function _project_prepend_path(){
   fi
 }
 
-function _main(){
-  export PROJECT_PATH=${PROJECT_PATH-"$(pwd)"}
-
+function _init(){
   if [ -f "$HOME/.bash_profile" ]; then
     . "$HOME/.bash_profile"
   elif [ -f "$HOME/.profile" ]; then
@@ -25,7 +30,7 @@ function _main(){
   #  3. extra paths
   #  4. project Local/bin (higher)
 
-  _project_prepend_path $PROJECT_PATH/b-lib/bin
+  _project_prepend_path $PROJECT_PATH/beelib/bin
   _project_prepend_path $PROJECT_PATH/bin
   _project_prepend_path $PROJECT_PATH/local/bin
 
@@ -46,7 +51,20 @@ function _main(){
 
 }
 
+function _main(){
+  local cmd=$1
+  local path="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+  if [ "$1" == "start" ]; then
+    shift
+    _start "$@"
+  else
+    _init "$@"
+  fi
+}
+
 _main "$@"
 
-unset -f _project_prepend_path
 unset -f _main
+unset -f _start
+unset -f _init
+unset -f _project_prepend_path
