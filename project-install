@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 function main(){
-  local PROJECT_TITLE=${1:-BeeLib Project}
+  local project_title=${1:-BeeLib Project}
   local path="$( cd "$( dirname "$( dirname "${BASH_SOURCE[0]}" )" )" && pwd )"
   local bin="$path/bin"
   local local="$path/local/bin"
@@ -9,12 +9,14 @@ function main(){
   local start_cmd="$path/project.cmd"
 
   mkdir --parents "$bin" "$local"
+  local project_path='$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")" && pwd)'
+  local start_bin='$(dirname "$(realpath "${BASH_SOURCE[0]}")")/beelib/project-start start'
 
   cat << EOF > $start
 #!/usr/bin/env bash
-PROJECT_TITLE="$PROJECT_TITLE" \\
-PROJECT_PATH=\$(cd "\$(dirname "\$(realpath "\${BASH_SOURCE[0]}" )" )" && pwd) \\
-\$(dirname "\$0")/beelib/project-start start
+PROJECT_TITLE="$project_title" \\
+PROJECT_PATH=$project_path \\
+$start_bin
 EOF
   chmod +x $start
 
