@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+
+function _start(){
+  local init_file="${path}/project-start"
+  type gnome-terminal >/dev/null 2>&1 \
+    && gnome-terminal -- bash --init-file "$init_file" \
+    || bash --init-file "$init_file"
+}
+
+function _project_prepend_path(){
+  local path=$1
+  if [[ -d "$path" ]]; then
+    if [[ ":$PATH:" != *":$path:"* ]]; then
+      export PATH=$path:$PATH
+    fi
+  fi
+}
+
+function _init(){
+  if [ -f "$HOME/.bash_profile" ]; then
+    . "$HOME/.bash_profile"
+  elif [ -f "$HOME/.profile" ]; then
+    . "$HOME/.profile"
+  fi
+
+  # project paths
+  # the priority follow the logic:
+  #  1. project bin (lower)
+  #  2. user
+  #  3. extra paths
+  #  4. project Local/bin (higher)
+
+  _project_prepend_path $PROJECT_PATH/beelib/bin
+  _project_prepend_path $PROJECT_PATH/bin
+  _project_prepend_path $PROJECT_PATH/local/bin
+
+  local red='\e[91m'
+  local green='\e[92m'
+  local yellow='\e[93m'
+  local blue='\e[94m'
+  local magenta='\e[95m'
+  local cyan='\e[96m'
+  local white='\e[97m'
+  local reset='\e[0m'
+  local git=""
+  if [ "$(type -t __git_ps1)" == "function" ]; then
+    git="$magenta\$(__git_ps1 \" (%s)\")"
+    export GIT_PS1_SHOWDIRTYSTATE=1
+  fi
+  export PS1=${PROJECT_PROMPT:-"\n$green\u@\h $cyan\t $red$PROJECT_TITLE $yellow\w$git$reset\n\$ "}
+
+  if [[ -d "$PROJECT_PATH/local" ]]; then
+    export HISTFILE=$PROJECT_PATH/local/.bash_history
+  fi
+
+  cd $PROJECT_PATH
+
+  hash -r
+
+}
+
+function _main(){
+  local cmd=$1
+  local path="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+  if [ "$1" == "start" ]; then
+    shift
+    _start "$@"
+  else
+    _init "$@"
+  fi
+}
+
+_main "$@"
+
+unset -f _main
+unset -f _start
+unset -f _init
+unset -f _project_prepend_path

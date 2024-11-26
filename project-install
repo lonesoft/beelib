@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+function main(){
+  local project_title=${1:-BeeLib Project}
+  local path="$( cd "$( dirname "$( dirname "${BASH_SOURCE[0]}" )" )" && pwd )"
+  local bin="$path/bin"
+  local local="$path/local/bin"
+  local start="$path/project"
+  local start_cmd="$path/project.cmd"
+
+  mkdir --parents "$bin" "$local"
+  local project_path='$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")" && pwd)'
+  local start_bin='$(dirname "$(realpath "${BASH_SOURCE[0]}")")/beelib/project-start start'
+
+  cat << EOF > $start
+#!/usr/bin/env bash
+PROJECT_TITLE="$project_title" \\
+PROJECT_PATH=$project_path \\
+$start_bin
+EOF
+  chmod +x $start
+
+#  cat << EOF > $start_cmd
+#@ECHO OFF
+#TITLE "$PROJECT_TITLE"
+#SETLOCAL
+#    WHERE wsl >nul 2>&1
+#    IF ERRORLEVEL 1 ECHO wsl command not found && PAUSE && GOTO :exit
+#    set base=%~dp0
+#    set base=%base:~2%
+#    IF [%base:~0,6%] == [\home\] (
+#        set root=%base:\=/%
+#    ) else (
+#        FOR /F "tokens=* USEBACKQ" %%F IN (\`wsl wslpath -ua '%~dp0'\`) DO SET root=%%F
+#    )
+#    wsl . ~/.profile; %root%b-project start --title %*
+#    IF ERRORLEVEL 1 PAUSE
+#:exit
+#ENDLOCAL
+#:: EXIT
+#EOF
+#
+}
+
+main "$@"
+
+unset -f main
