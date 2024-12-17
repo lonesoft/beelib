@@ -11,6 +11,7 @@ function main(){
   local start_cmd="$path/project.cmd"
 
   mkdir --parents "$bin" "$local"
+  echo * > "$local/.gitignore"
   local project_path='$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")" && pwd)'
   local start_bin='$(dirname "$(realpath "${BASH_SOURCE[0]}")")/beelib/project-start start'
 
