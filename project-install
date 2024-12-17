@@ -22,26 +22,6 @@ $start_bin
 EOF
   chmod +x $start
 
-#  cat << EOF > $start_cmd
-#@ECHO OFF
-#TITLE "$PROJECT_TITLE"
-#SETLOCAL
-#    WHERE wsl >nul 2>&1
-#    IF ERRORLEVEL 1 ECHO wsl command not found && PAUSE && GOTO :exit
-#    set base=%~dp0
-#    set base=%base:~2%
-#    IF [%base:~0,6%] == [\home\] (
-#        set root=%base:\=/%
-#    ) else (
-#        FOR /F "tokens=* USEBACKQ" %%F IN (\`wsl wslpath -ua '%~dp0'\`) DO SET root=%%F
-#    )
-#    wsl . ~/.profile; %root%b-project start --title %*
-#    IF ERRORLEVEL 1 PAUSE
-#:exit
-#ENDLOCAL
-#:: EXIT
-#EOF
-#
 }
 
 main "$@"
