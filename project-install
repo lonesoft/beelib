@@ -3,12 +3,15 @@
 set -euo pipefail
 
 function main(){
-  local project_title=${1:-BeeLib Project}
   local path="$( cd "$( dirname "$( dirname "${BASH_SOURCE[0]}" )" )" && pwd )"
+  local start="$path/project"
+  test -f "$start" && return 1
+
   local bin="$path/bin"
   local local="$path/local/bin"
-  local start="$path/project"
   local start_cmd="$path/project.cmd"
+  local project_title=${1:-BeeLib Project}
+
 
   mkdir --parents "$bin" "$local"
   echo * > "$local/.gitignore"
