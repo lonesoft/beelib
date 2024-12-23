@@ -18,7 +18,9 @@ git submodule add ./beelib
 
 ## 4. commit git (optional) 
 ```
-echo /local >> .gitignore  
+echo /local >> .gitignore
+echo "## install" >> README.md
+echo "git clone --recurse-submodules https://github.com/foo/bar" >> README.md
 git add .
 git commit -m "install beelib"
 ```
