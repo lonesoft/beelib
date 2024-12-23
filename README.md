@@ -1,9 +1,30 @@
 # beelib
 Bee Lib: a Bash Project Library
 
-## install into project
-`git clone https://github.com/lonesoft/beelib`  
-`beelib/install [project name]`
+## 1.a. use into exising git project
+`git submodule add https://github.com/lonesoft/beelib`
 
-## start project
-./project
+## 1.b. use into empty project
+`git clone https://github.com/lonesoft/beelib`  
+
+## 2. initialize git (optional)
+```
+git init  
+git submodule add ./beelib  
+```
+
+## 3. install beelib
+`beelib/project-install [project name]`
+
+## 4. commit git (optional) 
+```
+echo /local >> .gitignore  
+git add .
+git commit -m "install beelib"
+```
+
+## 5. start project
+`./project`
+
+## 6. clone project with beelib submodule
+`git clone --recurse-submodules https://github.com/foo/bar`
