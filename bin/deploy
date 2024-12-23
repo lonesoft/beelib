@@ -1,0 +1,168 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+. parse_parameters
+
+function envs(){
+  local prefix=${1:-}
+  local name tmp res
+#  cat $PROJECT_PATH/.env/.env $BASH_SOURCE.env | \
+  cat $PROJECT_PATH/.env/.env | \
+  while IFS='=' read name value || [ -n "$name" ]; do
+    [[ -z "${name// }" ]] && continue
+    [[ ${name:0:1} = "#" ]] && continue
+    value=${!name:-}
+    [[ "$value" =~ ( |\') ]] && value=\"$value\"
+    echo $prefix$name=$value
+  done
+  echo "CONTEXT=$context"
+  echo "WORKDIR=$workdir"
+}
+
+function execute(){
+#  cat "$init_file" "$workdir_file" "$run_file"
+  if [[ ${1:-user} == root ]]; then
+    cat "$init_file" "$workdir_file" "$run_file" | \
+    sshpass -p $INSTANCE_ROOT_PASSWORD ssh -C root@$INSTANCE_ADDRESS \
+    || exit $?
+  else
+    cat "$init_file" "$workdir_file" "$run_file" | \
+    ssh -C -i "~/.ssh/$INSTANCE_KEY_PAIR" $INSTANCE_USER@$INSTANCE_ADDRESS "/bin/bash -s" \
+    || exit $?
+  fi
+}
+
+function setContext(){
+  context=${1:-$PROJECT_PATH}
+}
+
+function setWorkdir(){
+  workdir=${1:-\~}
+  echo "cd $workdir" > $workdir_file
+}
+
+function setInitFile(){
+  echo "set -euo pipefail" > $init_file
+  echo 'alias sudo="sudo --preserve-env"' >> $init_file
+  echo "shopt -s expand_aliases" >> $init_file
+  envs "export " >> $init_file
+}
+
+function checkLocalFile(){
+  local name=${1:-}
+  test -z $name && echo "Missing Parameter" && exit 1
+  local file_name="$name"
+  case "$name" in (/*) ;; (~*) ;; *) file_name="$context/$name"; esac
+  if [[ -f "$file_name" ]]; then
+    eval "$2"=$(realpath $file_name)
+  else
+    echo "File $file_name not found"
+    exit 1
+  fi
+}
+
+function _initialize(){
+  local context workdir init_file workdir_file run_file
+  init_file=$(mktemp)
+  workdir_file=$(mktemp)
+  run_file=$(mktemp)
+
+  setContext
+  setWorkdir
+  setInitFile
+
+  "$@"
+
+  rm $init_file
+  rm $workdir_file
+  rm $run_file
+}
+
+function _deploy(){
+  local script
+  checkLocalFile "${1:-default}" "script"
+  setContext $(dirname $script)
+  . $script
+}
+
+function ENV(){ echo $FUNCNAME "$@"; _env "$@"; }
+function CONNECT(){ echo $FUNCNAME "$@"; _connect "$@"; }
+function ROOT-CONNECT(){ echo $FUNCNAME "$@"; _root-connect "$@"; }
+
+function RUN(){ echo $FUNCNAME "$@"; _run "$@"; }
+function ROOT-RUN(){ echo $FUNCNAME "$@"; _root-run "$@"; }
+function FILE(){ echo $FUNCNAME "$@"; _file "$@"; }
+function ROOT-FILE(){ echo $FUNCNAME "$@"; _root-file "$@"; }
+function COPY(){ echo $FUNCNAME "$@"; _copy "$@"; }
+function WORKDIR(){ echo $FUNCNAME $@; setWorkdir $@; }
+function CONTEXT(){ echo $FUNCNAME $@; setContext $@; }
+
+function _env(){
+  envs "$@"
+}
+
+function _connect(){
+  $TERMINAL_CMD ssh -C -i "~/.ssh/$INSTANCE_KEY_PAIR" $INSTANCE_USER@$INSTANCE_ADDRESS -t "$@" "/bin/bash --login"
+}
+
+function _root-connect(){
+  $TERMINAL_CMD sshpass -p $INSTANCE_ROOT_PASSWORD ssh -C root@$INSTANCE_ADDRESS "$@"
+}
+
+function _run(){
+  if [ ! -f "$script" ]; then
+    echo File \"$script\" not found
+    exit 1
+  fi
+  echo "$@" > $run_file
+  execute user
+}
+
+function _root-run(){
+  echo "$@" > $run_file
+  execute root
+}
+
+function _file(){
+  cp $1 $run_file
+  execute user
+}
+
+function _root-file(){
+  echo "$@" > $run_file
+  execute root
+}
+
+function _copy(){
+  echo $FUNCNAME $@
+#  ls -la "$context/$1"
+  scp -p -r -i ~/.ssh/${INSTANCE_KEY_PAIR} "$context/$1" "${INSTANCE_USER}@${INSTANCE_ADDRESS}:${workdir}/$2"
+  return
+
+}
+
+function main(){
+  local definitions=()
+  definitions+=("bash:$(basename $BASH_SOURCE)")
+  definitions+=("initialize:initialize")
+
+  definitions+=("command:deploy:deploy script")
+  definitions+=("command:env:print env variables")
+
+  definitions+=("command:connect:connect to the instance")
+  definitions+=("command:root-connect:connect to the instance as root")
+
+  definitions+=("command:run:run script")
+  definitions+=("command:root-run:run script as root")
+
+  definitions+=("command:file:run bash from file")
+  definitions+=("command:root-file:run bash from file as root")
+
+  definitions+=("command:copy:copy files")
+#  definitions+=("parameter:script:default:script name")
+
+  parse_parameters "${definitions[@]}" "$@" #--parse-parameters-dump #--parse-parameters-debug
+}
+
+main "$@"

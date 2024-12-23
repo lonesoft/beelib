@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+chmod u+x -R $PROJECT_PATH/local/bin/
+chmod u+x -R $PROJECT_PATH/bin/

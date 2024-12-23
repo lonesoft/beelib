@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+
+_test_current_test=
+_test_current_step=
+_test_assert_failed=false
+
+function _test_start(){
+  echo "+-----------------------+"
+  echo "|      START TEST       |"
+}
+
+function _test_end(){
+  if [[ $_test_assert_failed == false ]]; then
+    echo "+-----------------------+"
+    echo "|      TEST PASSED      |"
+    echo "+-----------------------+"
+  else
+    echo "+-----------------------+"
+    echo "| ********************* |"
+    echo "| **   TEST FAILED   ** |"
+    echo "| ********************* |"
+    echo "+-----------------------+"
+    exit 1
+  fi
+}
+
+function _test_name(){
+  _test_current_test="$1"
+  echo "+-----------------------+"
+  echo "| $_test_current_test:"
+}
+
+function _test_step_name(){
+  _test_current_step="$1"
+}
+
+function assert_pass(){
+  echo "|  * pass: $_test_current_step"
+}
+
+function assert_fail(){
+  echo "|  * fail: $_test_current_step"
+  echo "|      expected: $1"
+  echo "|      actual  : $2"
+  _test_assert_failed=true
+}
+
+function assert_equals(){
+  _test_step_name "$1"; shift
+  if [[ "$1" == "$2" ]]; then
+    assert_pass
+  else
+    assert_fail "$1" "$2"
+  fi
+}
+
+function assert_returns(){
+  local step="$1"; shift
+  local expected="$1"; shift
+  local actual
+  "$@" > /dev/null && actual=$? || actual=$?
+  assert_equals "$step" "$expected" "$actual"
+}
+
+function assert_echoes(){
+  local step="$1"; shift
+  local expected="$1"; shift
+  local actual=$("$@")
+  assert_equals "$step" "$expected" "$actual"
+}
+
+function assert_test(){
+  local step_name="$1"; shift
+  local expect="$1"; shift
+  local return_code
+  "$@" && return_code=$? || return_code=$?
+  echo "+-----------------------+"
+  echo "| Testing:"
+  echo "|   Step name: $step_name"
+  echo "|   Expect   : $expect"
+  echo "|   Done     : $return_code"
+}
+
+function _test_all(){
+  local root=$(dirname $BASH_SOURCE )
+  local filename
+  for filename in $root/*.beetest; do
+    $filename
+  done
+}
+
+if [[ "$BASH_SOURCE" == "$0" ]]; then
+  _test_all "$@"
+  exit $?
+fi
