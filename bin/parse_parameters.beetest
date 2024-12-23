@@ -1,0 +1,379 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+. beetest
+. parse_parameters
+
+function _callback_arguments(){
+  if [[ $# -gt 0 ]];then
+    echo "callback_arguments "$@""
+  else
+    echo "callback_arguments"
+  fi
+}
+function _callback_each_argument(){
+  local argument
+  echo "callback_each_argument"
+  for argument in "$@"; do
+    echo "$argument"
+  done
+}
+
+function _callback_parameter(){
+  local __name=$1
+  local __value=${!__name}
+  echo "callback_parameter "$__value""
+}
+
+function _callback_parameter_name(){
+  echo "callback_parameter_name "$name""
+}
+
+function _callback_empty(){
+  :
+}
+
+function _callback_initialize(){
+  echo callback_initialize
+  "$@"
+}
+
+function _callback_terminate(){
+  echo callback_terminate
+}
+
+function test_callback(){
+  _test_name "Test callbacks"
+
+  assert_echoes "Valid callback calls the function" "callback_arguments" \
+    parse_parameters \
+      "callback:callback_arguments"
+
+  assert_returns "Valid callback returns 0" 0 \
+    parse_parameters \
+      "callback:callback_arguments"
+
+  assert_returns "No callback definition returns 1" 1 \
+    parse_parameters
+
+  assert_returns "Invalid callback function returns 2" 2 \
+    parse_parameters \
+      "callback:none"
+
+  assert_echoes "Initialize function is called before" $'callback_initialize\ncallback_arguments' \
+    parse_parameters \
+      "initialize:callback_initialize" \
+      "callback:callback_arguments"
+
+  assert_echoes "Terminate function is called after" $'callback_arguments\ncallback_terminate' \
+    parse_parameters \
+      "terminate:callback_terminate" \
+      "callback:callback_arguments"
+
+  assert_echoes "initialize and terminate function is called" $'callback_initialize\ncallback_arguments\ncallback_terminate' \
+    parse_parameters \
+      "terminate:callback_terminate" \
+      "initialize:callback_initialize" \
+      "callback:callback_arguments"
+}
+
+function test_command(){
+  _test_name "Test commands"
+
+  assert_echoes "Valid command calls the function" "callback_arguments" \
+    parse_parameters \
+     "command:callback_arguments" \
+     "callback_arguments"
+
+  assert_returns "Valid command returns" 0 \
+    parse_parameters \
+      "command:callback_arguments" \
+      "callback_arguments"
+
+  assert_returns "No argument returns 1" 1 \
+    parse_parameters \
+      "command:callback_arguments"
+
+  assert_returns "Invalid argument returns 1" 1 \
+    parse_parameters \
+      "command:callback_arguments" \
+      "none"
+
+  assert_echoes "Multiple commands #1" "callback_arguments" \
+    parse_parameters \
+      "command:callback_arguments" \
+      "command:other_callback" \
+      "callback_arguments"
+
+  assert_echoes "Multiple commands #2" "callback_arguments" \
+    parse_parameters \
+      "command:other_callback" \
+      "command:callback_arguments" \
+      "callback_arguments"
+
+  assert_echoes "Callback ignored if any command is specified #1" "callback_arguments" \
+    parse_parameters \
+      "callback:other_callback" \
+      "command:callback_arguments" \
+      "callback_arguments"
+
+  assert_echoes "Callback ignored if any command is specified #2" "callback_arguments" \
+    parse_parameters \
+      "command:callback_arguments" \
+      "callback:other_callback" \
+      "callback_arguments"
+}
+
+function test_arguments(){
+  _test_name "Test arguments"
+
+  assert_echoes "Arguments are passed to the function #1" "callback_arguments arg1" \
+    parse_parameters \
+      "callback:callback_arguments" \
+      "arg1"
+
+  assert_echoes "Arguments are passed to the function #2" "callback_arguments arg1 arg2" \
+    parse_parameters \
+      "callback:callback_arguments" \
+      "arg1" \
+      "arg2"
+}
+
+function test_parameters(){
+  _test_name "Test Parameters"
+
+  assert_echoes "Parameter is passed to the callback" "callback_parameter param_value" \
+    parse_parameters \
+      "parameter:param_name" \
+      "param_value" \
+      "callback:callback_parameter" "param_name"
+}
+
+function test_parameters_commands(){
+  _test_name "Test Parameters and Command"
+
+  assert_echoes "Callback before parameter" "callback_parameter param_value" \
+    parse_parameters \
+      "command:callback_parameter" \
+      "parameter:param_name" \
+      "callback_parameter" \
+      "param_value" \
+      "param_name"
+
+  assert_echoes "Parameter before callback" "callback_parameter param_value" \
+    parse_parameters \
+      "parameter:param_name" \
+      "command:callback_parameter" \
+      "param_value" \
+      "callback_parameter" \
+      "param_name"
+}
+
+function test_options(){
+  _test_name "Test Options"
+
+  assert_echoes "Option with value" "callback_parameter param_value" \
+    parse_parameters \
+      "callback:callback_parameter" name \
+      "option:name" \
+      --name "param_value"
+
+  assert_echoes "Option with no value" "callback_parameter " \
+    parse_parameters \
+      "callback:callback_parameter" name \
+      "option:name"
+
+  assert_echoes "Option with default and with value" "callback_parameter param_value" \
+    parse_parameters \
+      "callback:callback_parameter" name \
+      "option:name:default" \
+      --name "param_value"
+
+  assert_echoes "Option with default and no value" "callback_parameter default" \
+    parse_parameters \
+      "callback:callback_parameter" name \
+      "option:name:default"
+}
+
+function test_flags(){
+  _test_name "Test Options"
+
+  assert_echoes "Flag with value" "callback_parameter true" \
+    parse_parameters \
+      "callback:callback_parameter" name \
+      "flag:name" \
+      --name
+
+  assert_echoes "Flag with no value" "callback_parameter false" \
+    parse_parameters \
+      "callback:callback_parameter" name \
+      "flag:name"
+
+  assert_echoes "Flag with default and no value" "callback_parameter true" \
+    parse_parameters \
+      "callback:callback_parameter" name \
+      "flag:name:true"
+
+  assert_echoes "Flag with default and negative value" "callback_parameter false" \
+    parse_parameters \
+      "callback:callback_parameter" name \
+      "flag:name:true" \
+      --no-name
+}
+
+function test_quoted(){
+  _test_name "Test Quoted"
+
+  assert_echoes "Quoted argument" "callback_arguments arg1 value" \
+    parse_parameters \
+      "callback:callback_arguments" \
+      "arg1 value"
+
+  assert_echoes "Quoted option" "callback_parameter param value" \
+    parse_parameters \
+      "callback:callback_parameter" name \
+      "option:name" \
+      --name "param value"
+
+  assert_echoes \
+    "Callback with multiple parameters" \
+    $'callback_each_argument\none\ntwo' \
+    parse_parameters \
+      "callback:callback_each_argument" \
+      one two
+
+  assert_echoes \
+    "Callback with quoted parameter" \
+    $'callback_each_argument\none two' \
+    parse_parameters \
+      "callback:callback_each_argument" \
+      "one two"
+
+  assert_echoes \
+    "Callback with star inside quoted parameter" \
+    $'callback_each_argument\none * two' \
+    parse_parameters \
+      "callback:callback_each_argument" \
+      "one * two"
+}
+
+function _help(){
+  echo Main description
+}
+
+function test_help(){
+    echo "+-----------------------+"
+    echo "|"
+    parse_parameters $debug --help \
+      "function:$0" \
+      \
+      "callback:callback_empty" \
+      \
+      "command:callback_parameter:description command parameter" \
+      \
+      "parameter:my_parameter:default:description parameter" \
+      \
+      "option:option-no-default::description of option no default" \
+      "option:option-default:my_default_value:description of option with default" \
+      \
+      "flag:def-flag-true:true:description of def-flag-true" \
+      "flag:def-flag-false:false:description of def-flag" \
+      "flag:def-flag::description of def-flag"
+    echo "|"
+}
+
+function test_parameters_precedence(){
+
+  assert_echoes "Arguments are passed to the function" "callback_arguments arg1" \
+    parse_parameters \
+      "command:callback_arguments" \
+      \
+      "callback_arguments" \
+      "arg1"
+
+
+  # Parameter definition after Command definition
+
+  assert_echoes \
+    "Parameter definition after Command definition and Parameter after Command: argument is passed to the function" \
+    "callback_arguments arg1" \
+      parse_parameters \
+        "command:callback_arguments" "parameter:name" \
+        "callback_arguments" "named" "arg1"
+
+  assert_echoes \
+    "Parameter definition after Command definition and Parameter after Command: variable is set" \
+    "callback_parameter_name named" \
+      parse_parameters \
+        "command:callback_parameter_name" "parameter:name" \
+        "callback_parameter_name" "named" "arg1"
+
+  assert_echoes \
+    "Parameter definition after Command definition and Parameter before Command: argument is passed to the function" \
+    "callback_arguments arg1" \
+      parse_parameters \
+        "command:callback_arguments" "parameter:name" \
+        "named" "callback_arguments" "arg1"
+
+  assert_echoes \
+    "Parameter definition after Command definition and Parameter before Command: variable is set" \
+    "callback_parameter_name named" \
+      parse_parameters \
+        "command:callback_parameter_name" "parameter:name" \
+        "named" "callback_parameter_name" "arg1"
+
+
+  # Parameter definition before Command definition
+
+  assert_echoes \
+    "Parameter definition before Command definition and Parameter before Command: two arguments are passed to the function" \
+    "callback_arguments named arg1" \
+      parse_parameters \
+        "parameter:name" "command:callback_arguments" \
+        "callback_arguments" "named" "arg1"
+
+  assert_echoes \
+    "Parameter definition before Command definition and Parameter after Command: variable is not set" \
+    "callback_parameter_name " \
+      parse_parameters \
+        "parameter:name" "command:callback_parameter_name" \
+        "callback_parameter_name" "named" "arg1"
+
+  assert_echoes \
+    "Parameter definition before Command definition and Parameter after Command: argument is passed to the function" \
+    "callback_arguments arg1" \
+      parse_parameters \
+        "parameter:name" "command:callback_arguments" \
+        "named" "callback_arguments" "arg1"
+
+  assert_echoes \
+    "Parameter definition before Command definition and Parameter before Command: variable is set" \
+    "callback_parameter_name named" \
+      parse_parameters \
+        "parameter:name" "command:callback_parameter_name" \
+        "named" "callback_parameter_name" "arg1"
+
+}
+function test_new(){
+  :
+}
+
+function test_main(){
+  local debug="--parse-parameters-debug --parse-parameters-dump"
+  _test_start
+  test_callback
+  test_command
+  test_arguments
+  test_parameters
+  test_parameters_commands
+  test_options
+  test_flags
+  test_quoted
+  test_help
+  test_parameters_precedence
+#  test_new
+  _test_end
+}
+
+test_main "$@"
