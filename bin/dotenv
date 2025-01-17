@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 function _dotenv_load_env() {
     local file=$1
     if [ -f "$file" ]; then
@@ -48,7 +50,7 @@ function dotenv(){
   export APP_ENV=${APP_ENV:-dev}
   export DOTENV_FOLDER=${DOTENV_FOLDER:-$(pwd)/.env}
 
-  local env=$1
+  local env=${1:-}
   shift 1
   local command="$@"
 
