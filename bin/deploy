@@ -21,16 +21,17 @@ function envs(){
 }
 
 function execute(){
-#  cat "$init_file" "$workdir_file" "$run_file"
-  if [[ ${1:-user} == root ]]; then
-    cat "$init_file" "$workdir_file" "$run_file" | \
-    sshpass -p $INSTANCE_ROOT_PASSWORD ssh -C root@$INSTANCE_ADDRESS \
-    || exit $?
-  else
-    cat "$init_file" "$workdir_file" "$run_file" | \
-    ssh -C -i "~/.ssh/$INSTANCE_KEY_PAIR" $INSTANCE_USER@$INSTANCE_ADDRESS "/bin/bash -s" \
-    || exit $?
-  fi
+  local user=${1:-$INSTANCE_USER}
+  local bin=()
+  [[ $user == root ]] && [[ -n $INSTANCE_ROOT_PASSWORD ]] && bin+=("sshpass -p $INSTANCE_ROOT_PASSWORD")
+  bin+=("ssh -C")
+  [[ -n $INSTANCE_ROOT_PASSWORD ]] && bin+=("-i $INSTANCE_KEY_PAIR")
+  bin+=("$user@$INSTANCE_ADDRESS")
+  bin=${bin[@]}
+
+  cat "$init_file" "$workdir_file" "$run_file" | \
+    $bin || \
+    exit $?
 }
 
 function setContext(){
@@ -45,7 +46,7 @@ function setWorkdir(){
 function setInitFile(){
   echo "set -euo pipefail" > $init_file
   echo 'alias sudo="sudo --preserve-env"' >> $init_file
-  echo "shopt -s expand_aliases" >> $init_file
+#  echo "shopt -s expand_aliases" >> $init_file
   envs "export " >> $init_file
 }
 
@@ -64,6 +65,7 @@ function checkLocalFile(){
 
 function _initialize(){
   local context workdir init_file workdir_file run_file
+  . dotenv ""
   init_file=$(mktemp)
   workdir_file=$(mktemp)
   run_file=$(mktemp)
@@ -103,7 +105,7 @@ function _env(){
 }
 
 function _connect(){
-  $TERMINAL_CMD ssh -C -i "~/.ssh/$INSTANCE_KEY_PAIR" $INSTANCE_USER@$INSTANCE_ADDRESS -t "$@" "/bin/bash --login"
+  $TERMINAL_CMD ssh -C -i "$INSTANCE_KEY_PAIR" $INSTANCE_USER@$INSTANCE_ADDRESS -t "$@" "/bin/bash --login"
 }
 
 function _root-connect(){
@@ -116,7 +118,7 @@ function _run(){
     exit 1
   fi
   echo "$@" > $run_file
-  execute user
+  execute
 }
 
 function _root-run(){
@@ -126,7 +128,7 @@ function _root-run(){
 
 function _file(){
   cp $1 $run_file
-  execute user
+  execute
 }
 
 function _root-file(){
@@ -139,7 +141,6 @@ function _copy(){
 #  ls -la "$context/$1"
   scp -p -r -i ~/.ssh/${INSTANCE_KEY_PAIR} "$context/$1" "${INSTANCE_USER}@${INSTANCE_ADDRESS}:${workdir}/$2"
   return
-
 }
 
 function main(){
