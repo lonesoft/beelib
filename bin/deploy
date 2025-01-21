@@ -16,8 +16,8 @@ function envs(){
     [[ "$value" =~ ( |\') ]] && value=\"$value\"
     echo $prefix$name=$value
   done
-  echo "CONTEXT=$context"
-  echo "WORKDIR=$workdir"
+  echo "${prefix}CONTEXT=$context"
+  echo "${prefix}WORKDIR=$workdir"
 }
 
 function execute(){
@@ -27,11 +27,15 @@ function execute(){
   bin+=("ssh -C")
   [[ -n $INSTANCE_ROOT_PASSWORD ]] && bin+=("-i $INSTANCE_KEY_PAIR")
   bin+=("$user@$INSTANCE_ADDRESS")
+  [[ $user != root ]] && bin+=("/bin/bash -s")
   bin=${bin[@]}
 
-  cat "$init_file" "$workdir_file" "$run_file" | \
+  cat "$init_file" "$env_file" "$workdir_file" "$run_file" | \
     $bin || \
     exit $?
+
+#  echo $bin
+#  cat "$init_file" "$env_file" "$workdir_file" "$run_file"
 }
 
 function setContext(){
@@ -40,14 +44,16 @@ function setContext(){
 
 function setWorkdir(){
   workdir=${1:-\~}
-  echo "cd $workdir" > $workdir_file
 }
 
-function setInitFile(){
+function initFiles(){
   echo "set -euo pipefail" > $init_file
   echo 'alias sudo="sudo --preserve-env"' >> $init_file
 #  echo "shopt -s expand_aliases" >> $init_file
-  envs "export " >> $init_file
+
+  envs "export " > $env_file
+
+  echo 'cd $WORKDIR' > $workdir_file
 }
 
 function checkLocalFile(){
@@ -63,20 +69,34 @@ function checkLocalFile(){
   fi
 }
 
+function debugFiles(){
+  echo -- init_file ----------------------------------------------
+  cat "$init_file"
+  echo -- env_file -----------------------------------------------
+  cat "$env_file"
+  echo -- workdir_file -------------------------------------------
+  cat "$workdir_file"
+  echo -- run_file -----------------------------------------------
+  cat "$run_file"
+  echo -----------------------------------------------------------
+}
+
 function _initialize(){
-  local context workdir init_file workdir_file run_file
+  local context workdir env_file init_file workdir_file run_file
   . dotenv ""
+  env_file=$(mktemp)
   init_file=$(mktemp)
   workdir_file=$(mktemp)
   run_file=$(mktemp)
 
   setContext
   setWorkdir
-  setInitFile
+  initFiles
 
   "$@"
 
   rm $init_file
+  rm $env_file
   rm $workdir_file
   rm $run_file
 }
@@ -88,6 +108,7 @@ function _deploy(){
   . $script
 }
 
+function ENVS(){ echo $FUNCNAME "$@"; _envs "$@"; }
 function ENV(){ echo $FUNCNAME "$@"; _env "$@"; }
 function CONNECT(){ echo $FUNCNAME "$@"; _connect "$@"; }
 function ROOT-CONNECT(){ echo $FUNCNAME "$@"; _root-connect "$@"; }
@@ -100,8 +121,15 @@ function COPY(){ echo $FUNCNAME "$@"; _copy "$@"; }
 function WORKDIR(){ echo $FUNCNAME $@; setWorkdir $@; }
 function CONTEXT(){ echo $FUNCNAME $@; setContext $@; }
 
+function _envs(){
+  cat $env_file | sed 's/^export //'
+  recycle "$@"
+}
+
 function _env(){
-  envs "$@"
+  echo "export $1" >> $env_file
+  shift
+  recycle "$@"
 }
 
 function _connect(){
@@ -123,6 +151,7 @@ function _run(){
 
 function _root-run(){
   echo "$@" > $run_file
+#  debugFiles
   execute root
 }
 
@@ -132,7 +161,7 @@ function _file(){
 }
 
 function _root-file(){
-  echo "$@" > $run_file
+  cp $1 $run_file
   execute root
 }
 
@@ -143,13 +172,20 @@ function _copy(){
   return
 }
 
-function main(){
+function recycle(){
+  [[ $# -eq 0 ]] && return
+  [[ ${1:0:1} = "+" ]] || return
+  local args=("$@")
+  args[0]="${args[0]:1}"
+  set -- ${args[@]}
   local definitions=()
-  definitions+=("bash:$(basename $BASH_SOURCE)")
-  definitions+=("initialize:initialize")
+  parse "$@"
+}
 
+function parse(){
   definitions+=("command:deploy:deploy script")
-  definitions+=("command:env:print env variables")
+  definitions+=("command:envs:print env variables")
+  definitions+=("command:env:set env variable")
 
   definitions+=("command:connect:connect to the instance")
   definitions+=("command:root-connect:connect to the instance as root")
@@ -162,8 +198,14 @@ function main(){
 
   definitions+=("command:copy:copy files")
 #  definitions+=("parameter:script:default:script name")
-
   parse_parameters "${definitions[@]}" "$@" #--parse-parameters-dump #--parse-parameters-debug
+}
+
+function main(){
+  local definitions=()
+  definitions+=("bash:$(basename $BASH_SOURCE)")
+  definitions+=("initialize:initialize")
+  parse "$@"
 }
 
 main "$@"
