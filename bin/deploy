@@ -101,13 +101,6 @@ function _initialize(){
   rm $run_file
 }
 
-function _deploy(){
-  local script
-  checkLocalFile "${1:-default}" "script"
-  setContext $(dirname $script)
-  . $script
-}
-
 function ENVS(){ echo $FUNCNAME "$@"; _envs "$@"; }
 function ENV(){ echo $FUNCNAME "$@"; _env "$@"; }
 function CONNECT(){ echo $FUNCNAME "$@"; _connect "$@"; }
@@ -136,15 +129,18 @@ function _connect(){
   $TERMINAL_CMD ssh -C -i "$INSTANCE_KEY_PAIR" $INSTANCE_USER@$INSTANCE_ADDRESS -t "$@" "/bin/bash --login"
 }
 
+function _deploy(){
+  local script
+  checkLocalFile "${1:-default}" "script"
+  setContext $(dirname $script)
+  . $script
+}
+
 function _root-connect(){
   $TERMINAL_CMD sshpass -p $INSTANCE_ROOT_PASSWORD ssh -C root@$INSTANCE_ADDRESS "$@"
 }
 
 function _run(){
-  if [ ! -f "$script" ]; then
-    echo File \"$script\" not found
-    exit 1
-  fi
   echo "$@" > $run_file
   execute
 }
