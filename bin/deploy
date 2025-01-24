@@ -8,7 +8,7 @@ function envs(){
   local prefix=${1:-}
   local name tmp res
 #  cat $PROJECT_PATH/.env/.env $BASH_SOURCE.env | \
-  cat $PROJECT_PATH/.env/.env | \
+  cat .env/.env | \
   while IFS='=' read name value || [ -n "$name" ]; do
     [[ -z "${name// }" ]] && continue
     [[ ${name:0:1} = "#" ]] && continue
@@ -44,6 +44,7 @@ function setContext(){
 
 function setWorkdir(){
   workdir=${1:-\~}
+  echo "export WORKDIR=$workdir" >> $env_file
 }
 
 function initFiles(){
@@ -164,7 +165,7 @@ function _root-file(){
 function _copy(){
   echo $FUNCNAME $@
 #  ls -la "$context/$1"
-  scp -p -r -i ~/.ssh/${INSTANCE_KEY_PAIR} "$context/$1" "${INSTANCE_USER}@${INSTANCE_ADDRESS}:${workdir}/$2"
+  scp -p -r -i ${INSTANCE_KEY_PAIR} "$context/$1" "${INSTANCE_USER}@${INSTANCE_ADDRESS}:${workdir}/$2"
   return
 }
 
