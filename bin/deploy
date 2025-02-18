@@ -163,10 +163,21 @@ function _root-file(){
 }
 
 function _copy(){
-  echo $FUNCNAME $@
-#  ls -la "$context/$1"
-  scp -p -r -i ${INSTANCE_KEY_PAIR} "$context/$1" "${INSTANCE_USER}@${INSTANCE_ADDRESS}:${workdir}/$2"
-  return
+  local from="$1";shift
+  local to="$1";shift
+  local source="$context/$from"
+  local target="$INSTANCE_USER@$INSTANCE_ADDRESS:$workdir/$to"
+  rsync --archive \
+        --compress \
+        --itemize-changes \
+        --checksum \
+        --delete \
+        --rsync-path="sudo /usr/bin/rsync" \
+        --rsh="ssh -i $INSTANCE_KEY_PAIR" \
+        "$@" \
+        $source $target
+#         \
+#        | grep -E '^[^.]' || true
 }
 
 function recycle(){
@@ -194,6 +205,7 @@ function parse(){
   definitions+=("command:root-file:run bash from file as root")
 
   definitions+=("command:copy:copy files")
+
 #  definitions+=("parameter:script:default:script name")
   parse_parameters "${definitions[@]}" "$@" #--parse-parameters-dump #--parse-parameters-debug
 }
