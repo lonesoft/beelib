@@ -15,9 +15,13 @@ function _dotenv_process(){
   _dotenv_load_env $DOTENV_FOLDER/.env
   _dotenv_load_env $DOTENV_FOLDER/.env.local
   if [ -n "$APP_ENV" ]; then
+      _dotenv_load_env $DOTENV_FOLDER/.env.${APP_ENV}
+      _dotenv_load_env $DOTENV_FOLDER/.env.${APP_ENV}.local
       _dotenv_load_env $DOTENV_FOLDER/${APP_ENV}/.env.${APP_ENV}
       _dotenv_load_env $DOTENV_FOLDER/${APP_ENV}/.env.${APP_ENV}.local
   fi
+  _dotenv_load_env $DOTENV_FOLDER/.env.post
+  _dotenv_load_env $DOTENV_FOLDER/.env.post.local
 }
 
 function _dotenv_vars(){
