@@ -8,7 +8,7 @@ function envs(){
   local prefix=${1:-}
   local name tmp res
 #  cat $PROJECT_PATH/.env/.env $BASH_SOURCE.env | \
-  cat $PROJECT_PATH/.env/.env | \
+  cat .env/.env | \
   while IFS='=' read name value || [ -n "$name" ]; do
     [[ -z "${name// }" ]] && continue
     [[ ${name:0:1} = "#" ]] && continue
@@ -16,21 +16,26 @@ function envs(){
     [[ "$value" =~ ( |\') ]] && value=\"$value\"
     echo $prefix$name=$value
   done
-  echo "CONTEXT=$context"
-  echo "WORKDIR=$workdir"
+  echo "${prefix}CONTEXT=$context"
+  echo "${prefix}WORKDIR=$workdir"
 }
 
 function execute(){
-#  cat "$init_file" "$workdir_file" "$run_file"
-  if [[ ${1:-user} == root ]]; then
-    cat "$init_file" "$workdir_file" "$run_file" | \
-    sshpass -p $INSTANCE_ROOT_PASSWORD ssh -C root@$INSTANCE_ADDRESS \
-    || exit $?
-  else
-    cat "$init_file" "$workdir_file" "$run_file" | \
-    ssh -C -i "~/.ssh/$INSTANCE_KEY_PAIR" $INSTANCE_USER@$INSTANCE_ADDRESS "/bin/bash -s" \
-    || exit $?
-  fi
+  local user=${1:-$INSTANCE_USER}
+  local bin=()
+  [[ $user == root ]] && [[ -n $INSTANCE_ROOT_PASSWORD ]] && bin+=("sshpass -p $INSTANCE_ROOT_PASSWORD")
+  bin+=("ssh -C")
+  [[ -n $INSTANCE_ROOT_PASSWORD ]] && bin+=("-i $INSTANCE_KEY_PAIR")
+  bin+=("$user@$INSTANCE_ADDRESS")
+  [[ $user != root ]] && bin+=("/bin/bash -s")
+  bin=${bin[@]}
+
+  cat "$init_file" "$env_file" "$workdir_file" "$run_file" | \
+    $bin || \
+    exit $?
+
+#  echo $bin
+#  cat "$init_file" "$env_file" "$workdir_file" "$run_file"
 }
 
 function setContext(){
@@ -39,14 +44,17 @@ function setContext(){
 
 function setWorkdir(){
   workdir=${1:-\~}
-  echo "cd $workdir" > $workdir_file
+  echo "export WORKDIR=$workdir" >> $env_file
 }
 
-function setInitFile(){
+function initFiles(){
   echo "set -euo pipefail" > $init_file
   echo 'alias sudo="sudo --preserve-env"' >> $init_file
-  echo "shopt -s expand_aliases" >> $init_file
-  envs "export " >> $init_file
+#  echo "shopt -s expand_aliases" >> $init_file
+
+  envs "export " > $env_file
+
+  echo 'cd $WORKDIR' > $workdir_file
 }
 
 function checkLocalFile(){
@@ -62,30 +70,39 @@ function checkLocalFile(){
   fi
 }
 
+function debugFiles(){
+  echo -- init_file ----------------------------------------------
+  cat "$init_file"
+  echo -- env_file -----------------------------------------------
+  cat "$env_file"
+  echo -- workdir_file -------------------------------------------
+  cat "$workdir_file"
+  echo -- run_file -----------------------------------------------
+  cat "$run_file"
+  echo -----------------------------------------------------------
+}
+
 function _initialize(){
-  local context workdir init_file workdir_file run_file
+  local context workdir env_file init_file workdir_file run_file
+  . dotenv ""
+  env_file=$(mktemp)
   init_file=$(mktemp)
   workdir_file=$(mktemp)
   run_file=$(mktemp)
 
   setContext
   setWorkdir
-  setInitFile
+  initFiles
 
   "$@"
 
   rm $init_file
+  rm $env_file
   rm $workdir_file
   rm $run_file
 }
 
-function _deploy(){
-  local script
-  checkLocalFile "${1:-default}" "script"
-  setContext $(dirname $script)
-  . $script
-}
-
+function ENVS(){ echo $FUNCNAME "$@"; _envs "$@"; }
 function ENV(){ echo $FUNCNAME "$@"; _env "$@"; }
 function CONNECT(){ echo $FUNCNAME "$@"; _connect "$@"; }
 function ROOT-CONNECT(){ echo $FUNCNAME "$@"; _root-connect "$@"; }
@@ -98,12 +115,26 @@ function COPY(){ echo $FUNCNAME "$@"; _copy "$@"; }
 function WORKDIR(){ echo $FUNCNAME $@; setWorkdir $@; }
 function CONTEXT(){ echo $FUNCNAME $@; setContext $@; }
 
+function _envs(){
+  cat $env_file | sed 's/^export //'
+  recycle "$@"
+}
+
 function _env(){
-  envs "$@"
+  echo "export $1" >> $env_file
+  shift
+  recycle "$@"
 }
 
 function _connect(){
-  $TERMINAL_CMD ssh -C -i "~/.ssh/$INSTANCE_KEY_PAIR" $INSTANCE_USER@$INSTANCE_ADDRESS -t "$@" "/bin/bash --login"
+  $TERMINAL_CMD ssh -C -i "$INSTANCE_KEY_PAIR" $INSTANCE_USER@$INSTANCE_ADDRESS -t "$@" "/bin/bash --login"
+}
+
+function _deploy(){
+  local script
+  checkLocalFile "${1:-default}" "script"
+  setContext $(dirname $script)
+  . $script
 }
 
 function _root-connect(){
@@ -111,44 +142,58 @@ function _root-connect(){
 }
 
 function _run(){
-  if [ ! -f "$script" ]; then
-    echo File \"$script\" not found
-    exit 1
-  fi
   echo "$@" > $run_file
-  execute user
+  execute
 }
 
 function _root-run(){
   echo "$@" > $run_file
+#  debugFiles
   execute root
 }
 
 function _file(){
   cp $1 $run_file
-  execute user
+  execute
 }
 
 function _root-file(){
-  echo "$@" > $run_file
+  cp $1 $run_file
   execute root
 }
 
 function _copy(){
-  echo $FUNCNAME $@
-#  ls -la "$context/$1"
-  scp -p -r -i ~/.ssh/${INSTANCE_KEY_PAIR} "$context/$1" "${INSTANCE_USER}@${INSTANCE_ADDRESS}:${workdir}/$2"
-  return
-
+  local from="$1";shift
+  local to="$1";shift
+  local source="$context/$from"
+  local target="$INSTANCE_USER@$INSTANCE_ADDRESS:$workdir/$to"
+  rsync --archive \
+        --compress \
+        --itemize-changes \
+        --checksum \
+        --delete \
+        --rsync-path="sudo /usr/bin/rsync" \
+        --rsh="ssh -i $INSTANCE_KEY_PAIR" \
+        "$@" \
+        $source $target
+#         \
+#        | grep -E '^[^.]' || true
 }
 
-function main(){
+function recycle(){
+  [[ $# -eq 0 ]] && return
+  [[ ${1:0:1} = "+" ]] || return
+  local args=("$@")
+  args[0]="${args[0]:1}"
+  set -- ${args[@]}
   local definitions=()
-  definitions+=("bash:$(basename $BASH_SOURCE)")
-  definitions+=("initialize:initialize")
+  parse "$@"
+}
 
+function parse(){
   definitions+=("command:deploy:deploy script")
-  definitions+=("command:env:print env variables")
+  definitions+=("command:envs:print env variables")
+  definitions+=("command:env:set env variable")
 
   definitions+=("command:connect:connect to the instance")
   definitions+=("command:root-connect:connect to the instance as root")
@@ -160,9 +205,16 @@ function main(){
   definitions+=("command:root-file:run bash from file as root")
 
   definitions+=("command:copy:copy files")
-#  definitions+=("parameter:script:default:script name")
 
+#  definitions+=("parameter:script:default:script name")
   parse_parameters "${definitions[@]}" "$@" #--parse-parameters-dump #--parse-parameters-debug
+}
+
+function main(){
+  local definitions=()
+  definitions+=("bash:$(basename $BASH_SOURCE)")
+  definitions+=("initialize:initialize")
+  parse "$@"
 }
 
 main "$@"
