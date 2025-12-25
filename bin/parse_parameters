@@ -43,7 +43,7 @@ function parse_parameters()(
 
   function extract(){
     local param index default parts
-    param="${1//-/_}"
+    param="$1"
     index=$2
     default="${3:-}"
     IFS=':' read -ra parts <<< "$param"
@@ -269,20 +269,20 @@ function parse_parameters()(
       help
       __parse__parameters__callback__=":"
       return 1
-    elif [[ "$(type -t _$callback)" != function ]]; then
+    elif [[ "$(type -t _${callback//-/_})" != function ]]; then
       help
       __parse__parameters__callback__=":"
       return 2
     fi
 
     for name in "${!values[@]}"; do
-      result="$result local $name=\""${values[$name]}\"";"
+      result="$result local ${name//-/_}=\""${values[$name]}\"";"
     done
 
     if [[ ! -z ${initialize:-} ]] &&  [[ "$(type -t _$initialize)" == function ]]; then
-      result="$result _$initialize _$callback"
+      result="$result _${initialize//-/_} _${callback//-/_}"
     else
-      result="$result _$callback"
+      result="$result _${callback//-/_}"
     fi
     for value in "${args[@]}"; do
       result="$result \""${value}\"""
