@@ -43,7 +43,7 @@ function parse_parameters()(
 
   function extract(){
     local param index default parts
-    param="$1"
+    param="${1//-/_}"
     index=$2
     default="${3:-}"
     IFS=':' read -ra parts <<< "$param"
